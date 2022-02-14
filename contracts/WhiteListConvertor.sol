@@ -5,7 +5,7 @@ import "./Manageable.sol";
 import "poolz-helper/contracts/IWhiteList.sol";
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 
-contract WhiteListConvertor is Manageable, IWhiteList {
+contract WhiteListConvertor is Manageable {
     using SafeMath for uint256;
 
     constructor(address _WhiteListAddress) public {
@@ -16,64 +16,45 @@ contract WhiteListConvertor is Manageable, IWhiteList {
         address _Subject,
         uint256 _Id,
         uint256 _Amount
-    ) external override {
-        uint256 amount = IWhiteList(WhiteListAddress).Check(_Subject, _Id);
+    ) external {
         require(
-            amount >= Convert(_Amount, _Id),
-            "Sorry, no alocation for Subject"
+            msg.sender == Identifiers[_Id].Contract,
+            "Only the Contract can call this"
         );
-        IWhiteList(WhiteListAddress).Register(_Subject, _Id, _Amount);
+        IWhiteList(WhiteListAddress).Register(
+            _Subject,
+            _Id,
+            Convert(_Amount, _Id, !Identifiers[_Id].Operation)
+        );
     }
 
-    function IsNeedRegister(uint256 _Id) external view override returns (bool) {
-        return IWhiteList(WhiteListAddress).IsNeedRegister(_Id);
-    }
-
-    function LastRoundRegister(address _Subject, uint256 _Id)
-        external
-        override
-    {
+    function LastRoundRegister(address _Subject, uint256 _Id) external {
+        require(
+            msg.sender == Identifiers[_Id].Contract,
+            "Only the Contract can call this"
+        );
         IWhiteList(WhiteListAddress).LastRoundRegister(_Subject, _Id);
-    }
-
-    function CreateManualWhiteList(uint256 _ChangeUntil, address _Contract)
-        external
-        payable
-        override
-        returns (uint256 Id)
-    {
-        uint256 id = IWhiteList(WhiteListAddress).CreateManualWhiteList(
-            _ChangeUntil,
-            address(this)
-        );
-        IWhiteList(WhiteListAddress).ChangeCreator(id, msg.sender);
-        return id;
-    }
-
-    function ChangeCreator(uint256 _Id, address _NewCreator) external override {
-        IWhiteList(WhiteListAddress).ChangeCreator(_Id, _NewCreator);
     }
 
     function Check(address _Subject, uint256 _Id)
         external
         view
-        override
         returns (uint256)
     {
         uint256 convertAmount = IWhiteList(WhiteListAddress).Check(
             _Subject,
             _Id
         );
-        return Convert(convertAmount, _Id);
+        return Convert(convertAmount, _Id, Identifiers[_Id].Operation);
     }
 
-    function Convert(uint256 _AmountToConvert, uint256 _Id)
-        internal
-        view
-        returns (uint256)
-    {
+    function Convert(
+        uint256 _AmountToConvert,
+        uint256 _Id,
+        bool _Operation
+    ) internal view zeroAmount(Identifiers[_Id].Price) returns (uint256) {
         uint256 amount = _AmountToConvert;
-        bool operation = Identifiers[_Id].Operation;
+        bool operation = _Operation;
         uint256 price = Identifiers[_Id].Price;
         return operation ? amount.mul(price) : amount.div(price);
     }
